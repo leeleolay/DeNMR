@@ -103,7 +103,11 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         self.visualization_tools = visualization_tools
         self.extra_features = extra_features
         self.domain_features = domain_features
-
+        
+        self.epoch_idx = 0
+        
+        self._epoch_losses = []
+        self._eval_epoch_losses = []
 
         # self.model = ConditionGT(n_layers_GT=cfg.model.n_layers,
         #                               input_dims=input_dims,
@@ -184,15 +188,21 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         num_H_peak = data.num_H_peak
         num_C_peak = data.num_C_peak
 
-        conditionAll = [condition_H1nmr, num_H_peak, condition_C13nmr, num_C_peak]
+        conditionVec = [condition_H1nmr, num_H_peak, condition_C13nmr, num_C_peak]
         '''________________'''
-
-        pred = self.forward(noisy_data, extra_data, node_mask, conditionAll)
+        ######## TODO add new
+        input_X = torch.cat((noisy_data['X_t'], extra_data.X), dim=2).float()
+        input_E = torch.cat((noisy_data['E_t'], extra_data.E), dim=3).float()
+        input_y = torch.hstack((noisy_data['y_t'], extra_data.y)).float()
+        ####################
+        pred = self.forward(input_X, input_E, input_y, node_mask, conditionVec)
+        # pred = self.forward(noisy_data, extra_data, node_mask, conditionAll)
         loss = self.train_loss(masked_pred_X=pred.X, masked_pred_E=pred.E, pred_y=pred.y,
                                true_X=X, true_E=E, true_y=data.y,
                                log=i % self.log_every_steps == 0)
-        if i%80 == 0:
-            print(f"train_loss:{loss}")
+        self._epoch_losses.append(loss.detach())
+        #if i%80 == 0:
+        print(f"step:{i+1}(Train): train_loss:{loss}")
         self.train_metrics(masked_pred_X=pred.X, masked_pred_E=pred.E, true_X=X, true_E=E,
                            log=i % self.log_every_steps == 0)
         sys.stdout.flush()
@@ -209,19 +219,31 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
             utils.setup_wandb(self.cfg)
 
     def on_train_epoch_start(self) -> None:
-        self.print("Starting train epoch...")
+        self.print(f"Starting train epoch... Epoch {self.epoch_idx}")
+        self.epoch_idx = self.epoch_idx + 1
         self.start_epoch_time = time.time()
         self.train_loss.reset()
         self.train_metrics.reset()
+        self._epoch_losses.clear()
 
     def on_train_epoch_end(self) -> None:
+        avg_loss = torch.stack(self._epoch_losses).mean()
         to_log = self.train_loss.log_epoch_metrics()
-        self.print(f"Epoch {self.current_epoch}: X_CE: {to_log['train_epoch/x_CE'] :.3f}"
-                      f" -- E_CE: {to_log['train_epoch/E_CE'] :.3f} --"
-                      f" y_CE: {to_log['train_epoch/y_CE'] :.3f}"
-                      f" -- {time.time() - self.start_epoch_time:.1f}s ")
+        elapsed = time.time() - self.start_epoch_time
         epoch_at_metrics, epoch_bond_metrics = self.train_metrics.log_epoch_metrics()
-        self.print(f"Epoch {self.current_epoch}: {epoch_at_metrics} -- {epoch_bond_metrics}")
+        at_str   = " | ".join(f"{k}: {v:.3f}" for k, v in epoch_at_metrics.items())
+        bond_str = " | ".join(f"{k}: {v:.3f}" for k, v in epoch_bond_metrics.items())
+        self.print(
+            f"Epoch {self.current_epoch}(Train): "
+            f"Loss: {avg_loss:.3f} | "
+            f"X_CE: {to_log['train_epoch/x_CE']:.3f} | "
+            f"E_CE: {to_log['train_epoch/E_CE']:.3f} | "
+            f"y_CE: {to_log['train_epoch/y_CE']:.3f} | "
+            f"{at_str} | {bond_str} | "
+            f"{elapsed:.1f}s"
+        )
+        # self.print(f"Epoch {self.current_epoch}(Train): X_CE: {to_log['train_epoch/x_CE'] :.3f} | E_CE: {to_log['train_epoch/E_CE'] :.3f} | y_CE: {to_log['train_epoch/y_CE'] :.3f} | {time.time() - self.start_epoch_time:.1f}s ")
+        # self.print(f"Epoch {self.current_epoch}(Train): {epoch_at_metrics} | {epoch_bond_metrics}")
 
     def on_validation_epoch_start(self) -> None:
         self.val_nll.reset()
@@ -238,6 +260,7 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         self.val_atomCount = []
         self.val_x = []
         self.val_e= []
+        self._eval_epoch_losses.clear()
 
     def validation_step(self, data, i):
         dense_data, node_mask = utils.to_dense(data.x, data.edge_index, data.edge_attr, data.batch)
@@ -259,10 +282,14 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         num_H_peak = data.num_H_peak
         num_C_peak = data.num_C_peak
 
-        conditionAll = [condition_H1nmr, num_H_peak, condition_C13nmr, num_C_peak]
+        conditionVec = [condition_H1nmr, num_H_peak, condition_C13nmr, num_C_peak]
         '''__________________'''
 
-        pred = self.forward(noisy_data, extra_data, node_mask, conditionAll)
+        input_X = torch.cat((noisy_data['X_t'], extra_data.X), dim=2).float()
+        input_E = torch.cat((noisy_data['E_t'], extra_data.E), dim=3).float()
+        input_y = torch.hstack((noisy_data['y_t'], extra_data.y)).float()
+        ####################
+        pred = self.forward(input_X, input_E, input_y, node_mask, conditionVec)
         # self.val_y_collection.append(data.conditionVec)
         self.val_y_condition_H1nmr.append(condition_H1nmr)
         self.val_y_condition_C13nmr.append(condition_C13nmr)
@@ -274,10 +301,11 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         loss = self.train_loss(masked_pred_X=pred.X, masked_pred_E=pred.E, pred_y=pred.y,
                                true_X=X, true_E=E, true_y=data.y,
                                log=i % self.log_every_steps == 0)
-        if i % 10 == 0:
-            print(f"val_loss:{loss}")
-        nll = self.compute_val_loss(pred, noisy_data, dense_data.X, dense_data.E, data.y, node_mask, condition=conditionAll, test=False)
-        return {'loss': nll}
+        # if i % 10 == 0:
+        nll = self.compute_val_loss(pred, noisy_data, dense_data.X, dense_data.E, data.y, node_mask, condition=conditionVec, test=False)
+        print((f"step {i}(Eval): val_loss:{loss}  val_nll:{nll}"))
+        self._eval_epoch_losses.append(loss.detach())
+        return {"loss": loss, 'nll': nll}
 
     def on_validation_epoch_end(self) -> None:
         metrics = [self.val_nll.compute(), self.val_X_kl.compute() * self.T, self.val_E_kl.compute() * self.T,
@@ -289,8 +317,8 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
                        "val/X_logp": metrics[3],
                        "val/E_logp": metrics[4]}, commit=False)
 
-        self.print(f"Epoch {self.current_epoch}: Val NLL {metrics[0] :.2f} -- Val Atom type KL {metrics[1] :.2f} -- ",
-                   f"Val Edge type KL: {metrics[2] :.2f}")
+        avg_eval_loss = torch.stack(self._eval_epoch_losses).mean()
+        self.print(f"Epoch {self.current_epoch}(Eval): Val Loss {avg_eval_loss :.2f} | Val NLL {metrics[0] :.2f} | Val Atom type KL {metrics[1] :.2f} | Val Edge type KL: {metrics[2] :.2f}")
         sys.stdout.flush()
         # Log val nll with default Lightning logger, so it can be monitored by checkpoint callback
         val_nll = metrics[0]
@@ -298,7 +326,7 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
 
         if val_nll < self.best_val_nll:
             self.best_val_nll = val_nll
-        self.print('Val loss: %.4f \t Best val loss:  %.4f\n' % (val_nll, self.best_val_nll))
+        # self.print('Val loss: %.4f \t Best val loss:  %.4f\n' % (val_nll, self.best_val_nll))
 
         self.val_counter += 1
         if self.val_counter % self.cfg.general.sample_every_val == 0:
@@ -445,10 +473,14 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         num_H_peak = data.num_H_peak
         num_C_peak = data.num_C_peak
 
-        conditionAll = [condition_H1nmr, num_H_peak, condition_C13nmr, num_C_peak]
-        '''_______________________'''
+        conditionVec = [condition_H1nmr, num_H_peak, condition_C13nmr, num_C_peak]
 
-        pred = self.forward(noisy_data, extra_data, node_mask, conditionAll)
+        input_X = torch.cat((noisy_data['X_t'], extra_data.X), dim=2).float()
+        input_E = torch.cat((noisy_data['E_t'], extra_data.E), dim=3).float()
+        input_y = torch.hstack((noisy_data['y_t'], extra_data.y)).float()
+        pred = self.forward(input_X, input_E, input_y, node_mask, conditionVec)
+        #pred = self.forward(noisy_data, extra_data, node_mask, conditionAll)
+
         # self.test_y_collection.append(data.conditionVec)
         self.test_y_condition_H1nmr.append(condition_H1nmr)
         self.test_y_condition_C13nmr.append(condition_C13nmr)
@@ -457,7 +489,7 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         self.test_atomCount.append(data.atom_count)
         self.test_x.append(X)
         self.test_e.append(E)
-        nll = self.compute_val_loss(pred, noisy_data, dense_data.X, dense_data.E, data.y, node_mask, condition=conditionAll, test= True)
+        nll = self.compute_val_loss(pred, noisy_data, dense_data.X, dense_data.E, data.y, node_mask, condition=conditionVec, test= True)
         return {'loss': nll}
 
     def on_test_epoch_end(self) -> None:
@@ -673,7 +705,7 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         kl_e = (self.test_E_kl if test else self.val_E_kl)(prob_true.E, torch.log(prob_pred.E))
         return self.T * (kl_x + kl_e)
 
-    def reconstruction_logp(self, t, X, E, node_mask, condition):
+    def reconstruction_logp(self, t, X, E, node_mask, conditionVec):
         # Compute noise values for t = 0.
         t_zeros = torch.zeros_like(t)
         beta_0 = self.noise_schedule(t_zeros)
@@ -695,7 +727,11 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         noisy_data = {'X_t': sampled_0.X, 'E_t': sampled_0.E, 'y_t': sampled_0.y, 'node_mask': node_mask,
                       't': torch.zeros(X0.shape[0], 1).type_as(y0)}
         extra_data = self.compute_extra_data(noisy_data)
-        pred0 = self.forward(noisy_data, extra_data, node_mask, condition)
+        input_X = torch.cat((noisy_data['X_t'], extra_data.X), dim=2).float()
+        input_E = torch.cat((noisy_data['E_t'], extra_data.E), dim=3).float()
+        input_y = torch.hstack((noisy_data['y_t'], extra_data.y)).float()
+        pred0 = self.forward(input_X, input_E, input_y, node_mask, conditionVec)
+        #pred0 = self.forward(noisy_data, extra_data, node_mask, condition)
 
         # Normalize predictions
         probX0 = F.softmax(pred0.X, dim=-1)
@@ -718,6 +754,9 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
         # Sample a timestep t.
         lowest_t = 1
         t_int = torch.randint(lowest_t, self.T + 1, size=(X.size(0), 1), device=X.device).float()  # (bs, 1)
+        # import numpy as np
+        # t_int = torch.from_numpy(np.load("/tmp/t_int_fix.npy")).to(X.device)
+
         s_int = t_int - 1
 
         t_float = t_int / self.T
@@ -746,6 +785,10 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
 
         noisy_data = {'t_int': t_int, 't': t_float, 'beta_t': beta_t, 'alpha_s_bar': alpha_s_bar,
                       'alpha_t_bar': alpha_t_bar, 'X_t': z_t.X, 'E_t': z_t.E, 'y_t': z_t.y, 'node_mask': node_mask}
+        import numpy as np
+        # np.savez("/home/liuxuwei01/PaddleMaterial/output/noisy_data.npz", **{k: (v.cpu().numpy() if hasattr(v, 'cpu') else (v.numpy() if hasattr(v, 'numpy') else v)) for k, v in noisy_data.items()})
+        # noisy_data = np.load("/home/liuxuwei01/PaddleMaterial/output/noisy_data.npz")
+        # noisy_data = {k: torch.from_numpy(v).to(X.device) for k, v in noisy_data.items()}
         return noisy_data
 
     def compute_val_loss(self, pred, noisy_data, X, E, y, node_mask, condition, test=False):
@@ -790,15 +833,18 @@ class DiscreteDenoisingDiffusionCondition(pl.LightningModule):
                        'batch_test_nll' if test else 'val_nll': nll}, commit=False)
         return nll
 
-    def forward(self, noisy_data, extra_data, node_mask, condition):
-        X = torch.cat((noisy_data['X_t'], extra_data.X), dim=2).float()
-        E = torch.cat((noisy_data['E_t'], extra_data.E), dim=3).float()
-        y = torch.hstack((noisy_data['y_t'], extra_data.y)).float()
+    def forward(self, input_X, input_E, input_y, node_mask, conditionVec):
+        # input_X = torch.cat((noisy_data['X_t'], extra_data.X), dim=2).float()
+        # input_E = torch.cat((noisy_data['E_t'], extra_data.E), dim=3).float()
+        # input_y = torch.hstack((noisy_data['y_t'], extra_data.y)).float()
         '''***********'''
         # condition = torch.tensor(condition)
         '''____________'''
-
-        return self.model(X, E, y, node_mask, condition)
+        # import numpy as np
+        # input_X = torch.from_numpy(np.load("/home/liuxuwei01/PaddleMaterial/output/input_X.npy")).float().to(node_mask.device) # TODO
+        # input_E = torch.from_numpy(np.load("/home/liuxuwei01/PaddleMaterial/output/input_E.npy")).float().to(node_mask.device)
+        # input_y = torch.from_numpy(np.load("/home/liuxuwei01/PaddleMaterial/output/input_y.npy")).float().to(node_mask.device)
+        return self.model(input_X, input_E, input_y, node_mask, conditionVec)
 
 
 

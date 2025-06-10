@@ -67,24 +67,30 @@ class XEyTransformerLayer(nn.Module):
 
         newX_d = self.dropoutX1(newX)
         X = self.normX1(X + newX_d)
+        # X = X + newX_d
 
         newE_d = self.dropoutE1(newE)
         E = self.normE1(E + newE_d)
+        # E = E + newE_d
 
         new_y_d = self.dropout_y1(new_y)
         y = self.norm_y1(y + new_y_d)
+        # y = y + new_y_d
 
         ff_outputX = self.linX2(self.dropoutX2(self.activation(self.linX1(X))))
         ff_outputX = self.dropoutX3(ff_outputX)
         X = self.normX2(X + ff_outputX)
+        # X = X + ff_outputX
 
         ff_outputE = self.linE2(self.dropoutE2(self.activation(self.linE1(E))))
         ff_outputE = self.dropoutE3(ff_outputE)
         E = self.normE2(E + ff_outputE)
+        # E = E + ff_outputE
 
         ff_output_y = self.lin_y2(self.dropout_y2(self.activation(self.lin_y1(y))))
         ff_output_y = self.dropout_y3(ff_output_y)
         y = self.norm_y2(y + ff_output_y)
+        # y = y + ff_output_y
 
         return X, E, y
 

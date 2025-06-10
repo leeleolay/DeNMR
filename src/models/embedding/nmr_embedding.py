@@ -68,11 +68,11 @@ class H1nmr_embedding(nn.Module):
 
         self.shift_emb = RBFEncoder(min=H_shift_min, max=H_shift_max, bins=H_shift_bin)  # 覆盖常见1H范围
 
-        self.peakwidth_emb = nn.Embedding(70, peakwidth_dim, padding_idx=0)
+        self.peakwidth_emb = nn.Embedding(70, peakwidth_dim, padding_idx=0) #70
 
         self.split_emb = nn.Embedding(116, split_dim, padding_idx=0)  # 支持116种裂分模式
 
-        self.integral_emb = nn.Embedding(26, integral_dim, padding_idx=0)
+        self.integral_emb = nn.Embedding(26, integral_dim, padding_idx=0) #26
 
         self.J_emb = RBFEncoder_Jcouple(min1=min_j, max1=26, bins1=j_bins1, min2=27, max2=max_j, bins2=j_bins2)
 

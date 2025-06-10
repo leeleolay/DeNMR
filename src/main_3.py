@@ -170,7 +170,7 @@ def main(cfg: DictConfig):
         # trainer.fit(model, datamodule=datamodule, ckpt_path=cfg.general.resume)
         if cfg.general.name not in ['test']:
             # trainer.test(model, datamodule=datamodule)
-            trainer.test(model, datamodule=datamodule,ckpt_path='/home/liuxuwei01/molecular2molecular/step4_best.ckpt')
+            trainer.test(model, datamodule=datamodule,ckpt_path='/public/home/szlab_wubinglan/DeNMR/pretrained/step4_best.ckpt')
     else:
         # Start by evaluating test_only_path
         trainer.test(model, datamodule=datamodule, ckpt_path=cfg.general.test_only)

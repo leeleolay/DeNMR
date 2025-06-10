@@ -89,6 +89,9 @@ class DiscreteDenoisingDiffusionMolecular_condition(pl.LightningModule):
                                       output_dims=output_dims,
                                       act_fn_in=nn.ReLU(),
                                       act_fn_out=nn.ReLU())
+        # torch.save(self.model.state_dict(),'/home/liuxuwei01/PaddleMaterial/output/init_lxw_step1.pth')
+        # pretrained_dict = torch.load("/home/liuxuwei01/PaddleMaterial/output/init_lxw_step1.pth")
+        # self.model.load_state_dict(pretrained_dict, strict=True)
 
         self.noise_schedule = PredefinedNoiseScheduleDiscrete(cfg.model.diffusion_noise_schedule,
                                                               timesteps=cfg.model.diffusion_steps)
@@ -141,8 +144,9 @@ class DiscreteDenoisingDiffusionMolecular_condition(pl.LightningModule):
         loss = self.train_loss(masked_pred_X=pred.X, masked_pred_E=pred.E, pred_y=pred.y,
                                true_X=X, true_E=E, true_y=data.y,
                                log=i % self.log_every_steps == 0)
-        if i%80 == 0:
-            print(f"train_loss:{loss}")
+        #if i%80 == 0:
+            # print(f"train_loss:{loss}")
+        print(f"step:{i} train_loss:{loss}")
         self.train_metrics(masked_pred_X=pred.X, masked_pred_E=pred.E, true_X=X, true_E=E,
                            log=i % self.log_every_steps == 0)
         sys.stdout.flush()
@@ -188,6 +192,11 @@ class DiscreteDenoisingDiffusionMolecular_condition(pl.LightningModule):
 
 
     def validation_step(self, data, i):
+        # TODO
+        #pretrained_dict = torch.load("/home/liuxuwei01/PaddleMaterial/output/init_lxw_step1.pth")
+        #self.model.load_state_dict(pretrained_dict, strict=True)
+        #self.model.eval()
+        
         dense_data, node_mask = utils.to_dense(data.x, data.edge_index, data.edge_attr, data.batch)
         dense_data = dense_data.mask(node_mask)
         X, E = dense_data.X, dense_data.E
@@ -470,16 +479,15 @@ class DiscreteDenoisingDiffusionMolecular_condition(pl.LightningModule):
                         similarity = DataStructs.FingerprintSimilarity(fp1, fp2)
                         # 输出相似度
                         if similarity == 1 and smiles1 !=smiles2:
-                            print(f'smiles1:{smiles1}')
-                            print(f'smiles2:{smiles2}')
-                            print(f'different_index:{i + ident}')
+                            print(f'smiles1:{smiles1} | smiles2:{smiles2} | similarity:{similarity} | different_index:{i + ident}')
 
                         # 比较 SMILES 表示是否完全相同
                         if smiles1 == smiles2:
                             self.zero_vector[i+ident] = 1
-                            print(f'smiles1:{smiles1}')
-                            print(f'smiles2:{smiles2}')
-                            print(f'index:{i+ident}')
+                            print(f'smiles1:{smiles1} | smiles2:{smiles2} | similarity:{similarity} | index:{i+ident}')
+
+                        if similarity != 1:
+                            print(f'smiles1:{smiles1} | smiles2:{smiles2} | similarity:{similarity} | index:{i+ident}')
 
 
                     except Exception as e:
@@ -638,6 +646,9 @@ class DiscreteDenoisingDiffusionMolecular_condition(pl.LightningModule):
         # Sample a timestep t.
         lowest_t = 1
         t_int = torch.randint(lowest_t, self.T + 1, size=(X.size(0), 1), device=X.device).float()  # (bs, 1)
+        # import numpy as np
+        # t_int = torch.from_numpy(np.load("/home/liuxuwei01/PaddleMaterial/output/t_int.npy")).to(X.device).float()
+        
         s_int = t_int - 1
 
         t_float = t_int / self.T
@@ -913,7 +924,16 @@ class DiscreteDenoisingDiffusionMolecular_condition(pl.LightningModule):
 
         # Neural net predictions
         noisy_data = {'X_t': X_t, 'E_t': E_t, 'y_t': y_t, 't': t, 'node_mask': node_mask}
+        import numpy as np
+        for key in noisy_data.keys():
+            np.save(f'/home/liuxuwei01/PaddleMaterial/output/noisy_data_{key}.npy', noisy_data[key].detach().cpu().numpy())
         extra_data = self.compute_extra_data(noisy_data)
+        np.save(f'/home/liuxuwei01/PaddleMaterial/output/extra_data_X.npy', extra_data.X.detach().cpu().numpy())
+        np.save(f'/home/liuxuwei01/PaddleMaterial/output/extra_data_E.npy', extra_data.E.detach().cpu().numpy())
+        np.save(f'/home/liuxuwei01/PaddleMaterial/output/extra_data_y.npy', extra_data.y.detach().cpu().numpy())
+        np.save(f'/home/liuxuwei01/PaddleMaterial/output/node_mask.npy', node_mask.detach().cpu().numpy())
+        np.save(f'/home/liuxuwei01/PaddleMaterial/output/batch_X.npy', batch_X.detach().cpu().numpy())
+        np.save(f'/home/liuxuwei01/PaddleMaterial/output/batch_E.npy', batch_E.detach().cpu().numpy())
         pred = self.forward_sample(noisy_data, extra_data, node_mask, batch_X, batch_E)
 
         # Normalize predictions

@@ -50,6 +50,7 @@ class H1nmr_encoder(nn.Module):
     def __init__(self,  d_model, dim_feedforward, n_head, num_layers, drop_prob, device):
         super().__init__()
 
+        self.num_heads = n_head
         self.embed = H1nmr_embedding(device, dim=d_model,drop_prob=drop_prob)
 
         # Transformer Encoder
@@ -68,9 +69,13 @@ class H1nmr_encoder(nn.Module):
 
         pad_mask = (src_mask == 0)
 
-        out = self.encoder(src=x_emb, mask=None, # 不适用序列掩码（通常用于解码器）
-                           src_key_padding_mask=pad_mask)
-        # print(f'out{out.shape}')
+        bsz, src_len, _ = x_emb.shape
+        pad_mask_new = pad_mask.view(bsz, 1, 1, src_len).expand(-1, self.num_heads, src_len, -1).reshape(bsz * self.num_heads, src_len, src_len)
+        out = self.encoder(src=x_emb, mask=pad_mask_new)
+        
+        # out = self.encoder(src=x_emb, mask=None, # 不适用序列掩码（通常用于解码器）
+        #                    src_key_padding_mask=pad_mask)
+
         return out
 
 class C13nmr_encoder(nn.Module):
@@ -159,15 +164,15 @@ class MaskedCrossModalAttentionPool(nn.Module):
 
 
 class NMR_fusion(nn.Module):
-    def __init__(self,device, dim_h=1024, dim_c=256, hidden_dim=512, out_dim=512, bi_crossattn_fusion_mode='', pool_mode='', crossmodal_fusion_mode='',):
+    def __init__(self,device, dim_h=1024, dim_c=256, hidden_dim=512, num_heads=8, out_dim=512, bi_crossattn_fusion_mode='', pool_mode='', crossmodal_fusion_mode='',):
         super().__init__()
 
         # 投影层
         self.proj_h = nn.Linear(dim_h, hidden_dim)
         self.proj_c = nn.Linear(dim_c, hidden_dim)
         # 双向交叉注意力
-        self.cross_attn_ab = nn.MultiheadAttention(hidden_dim, num_heads=8)
-        self.cross_attn_ba = nn.MultiheadAttention(hidden_dim, num_heads=8)
+        self.cross_attn_ab = nn.MultiheadAttention(hidden_dim, num_heads)
+        self.cross_attn_ba = nn.MultiheadAttention(hidden_dim, num_heads)
 
         self.bi_crossattn_fusion_mode = bi_crossattn_fusion_mode
         self.pool_mode = pool_mode
@@ -314,7 +319,7 @@ class NMR_encoder(nn.Module):
 
         mask = torch.zeros(batch_size, max_seq_len, device=self.device)
         for i, length in enumerate(num_peak):
-            mask[i, :length] = 1
+            mask[i, :int(length)] = 1
         return mask
 
     def forward(self, condition):

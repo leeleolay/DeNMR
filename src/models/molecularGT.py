@@ -69,19 +69,24 @@ class molecularGT(nn.Module):
 
         return utils.PlaceHolder(X=extra_X, E=extra_E, y=extra_y)
 
-    def forward(self, X, E, y, node_mask, X_condition, E_condtion):
+    def forward(self, X, E, y, node_mask, X_condition, E_condition):
         # y_condition = torch.zeros(X.size(0), 1024).cuda()
         y_condition = torch.zeros((X.size(0), 0), dtype=torch.float)
         # print(f'Xshape{X.shape}')
         # print(f'node_mask{node_mask.shape}')
         # print(f'X_condition{X_condition.shape}')
-        processed_data = self.preprocess_molecular_data(X_condition, E_condtion, y_condition, node_mask)
+        processed_data = self.preprocess_molecular_data(X_condition, E_condition, y_condition, node_mask)
 
         extra_data = self.compute_extra_data(processed_data)
         X_condition = torch.cat((processed_data['X_t'], extra_data.X), dim=2).float()
-        E_condtion = torch.cat((processed_data['E_t'], extra_data.E), dim=3).float()
+        E_condition = torch.cat((processed_data['E_t'], extra_data.E), dim=3).float()
         y_condition = torch.hstack((processed_data['y_t'], extra_data.y)).float()
-        conditionVec = self.conditionEn(X_condition, E_condtion, y_condition, node_mask)
+        import numpy as np
+        np.save('/home/liuxuwei01/PaddleMaterial/output/X_condition.npy',X_condition.detach().cpu().numpy())
+        np.save('/home/liuxuwei01/PaddleMaterial/output/E_condition.npy',E_condition.detach().cpu().numpy())
+        np.save('/home/liuxuwei01/PaddleMaterial/output/y_condition.npy',y_condition.detach().cpu().numpy())
+        
+        conditionVec = self.conditionEn(X_condition, E_condition, y_condition, node_mask)
 
         y = torch.hstack((y, conditionVec)).float()
 

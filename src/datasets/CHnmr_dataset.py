@@ -15,7 +15,7 @@ from torch_geometric.data import Data, InMemoryDataset, download_url, extract_zi
 from torch_geometric.utils import subgraph
 
 import src.utils as utils
-from src.datasets.abstract_dataset import MolecularDataModule, AbstractDatasetInfos
+from .abstract_dataset import MolecularDataModule, AbstractDatasetInfos
 from src.analysis.rdkit_functions import mol2smiles, build_molecule_with_partial_charges
 from src.analysis.rdkit_functions import compute_molecular_metrics
 # from src.numericalize_text import numericalize_text
@@ -79,12 +79,12 @@ class CHnmrDataset(InMemoryDataset):
         #         word, _ = line.strip().split("\t")
         #         self.vocab_to_id[word] = current_id
         #         current_id += 1
-        peakwidth_filepath = '/home/liuxuwei01/molecular2molecular/data/CHnmr/CHnmr_pyg/statistic/H1_statistic/delta_distribution.csv'
+        peakwidth_filepath = '/public/home/szlab_wubinglan/DeNMR/data/CHnmr/CHnmr_pyg/statistic/H1_statistic/delta_distribution.csv'
         df_peakwidth =pd.read_csv(peakwidth_filepath)
         for idx, value in enumerate(df_peakwidth['Value']):
             self.vocab_peakwidth[value] = idx + 2
 
-        split_filepath = '/home/liuxuwei01/molecular2molecular/data/CHnmr/CHnmr_pyg/statistic/H1_statistic/split_type_distribution.csv'
+        split_filepath = '/public/home/szlab_wubinglan/DeNMR/data/CHnmr/CHnmr_pyg/statistic/H1_statistic/split_type_distribution.csv'
         df_split = pd.read_csv(split_filepath)
         for idx, type in enumerate(df_split['Type']):
             self.vocab_split[type] = idx + 2

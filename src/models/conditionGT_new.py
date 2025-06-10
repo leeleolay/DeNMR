@@ -26,7 +26,7 @@ class ConditionGT(nn.Module):
 
         self.device = device
 
-        checkpoint = torch.load('/home/liuxuwei01/molecular2molecular/pretrained/new_molen_pre_de.ckpt')
+        checkpoint = torch.load('/public/home/szlab_wubinglan/DeNMR/pretrained/new_molen_pre_de.ckpt')
         # 获取模型的 state_dict
         state_dict = checkpoint['state_dict']
         # 从 state_dict 中提取 conditionEn 部分的权重
@@ -35,7 +35,7 @@ class ConditionGT(nn.Module):
         # 加载到模型的 conditionEn 部分
         self.GT.load_state_dict(GT_state_dict)
 
-        checkpoint = torch.load('/home/liuxuwei01/molecular2molecular/pretrained/new_molen_pre_de_new_nmr.ckpt')
+        checkpoint = torch.load('/public/home/szlab_wubinglan/DeNMR/pretrained/new_molen_pre_de_new_nmr.ckpt')
         # 获取模型的 state_dict
         state_dict = checkpoint['state_dict']
         # 从 state_dict 中提取 conditionEn 部分的权重
