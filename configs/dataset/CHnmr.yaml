@@ -1,0 +1,5 @@
+name: 'CHnmr'
+datadir: 'data/CHnmr/CHnmr_pyg/'
+remove_h: True
+random_subset: null
+pin_memory: True

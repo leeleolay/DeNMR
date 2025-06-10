@@ -1,0 +1,21 @@
+# 忽略输出文件夹
+output/
+
+# 忽略 egg-info 目录
+molecular2molecular.egg-info/
+src/__pycache__/
+src/analysis/__pycache__/
+src/datasets/__pycache__/
+src/diffusion/__pycache__/
+src/diffusion/extra_features_paddle.py
+src/init_lxw_step1.pth
+src/metrics/__pycache__/
+src/models/__pycache__/
+src/models/blocks/__pycache__/
+src/models/contrastGT_old.py
+src/models/embedding/__pycache__/
+src/models/layers/__pycache__/
+src/models/model/__pycache__/
+src/models/model/paddle_project/
+src/new_molen_pre_de.ckpt
+src/new_molen_pre_de_new_nmr.ckpt
