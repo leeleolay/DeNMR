@@ -25,6 +25,20 @@ from datasets import CHnmr_dataset
 warnings.filterwarnings("ignore", category=PossibleUserWarning)
 
 
+
+import torch
+import numpy as np
+import random
+
+def set_seed(seed):
+    random.seed(seed)                  # Python 内置随机
+    np.random.seed(seed)               # NumPy 随机
+    torch.manual_seed(seed)            # CPU 生成的随机数
+    torch.cuda.manual_seed(seed)       # GPU 单卡
+    torch.cuda.manual_seed_all(seed)   # GPU 多卡
+    torch.backends.cudnn.deterministic = True   # 强制 cudnn 使用确定性算法
+    torch.backends.cudnn.benchmark = False      # 禁止 benchmark，确保每次算法一致
+
 def get_resume(cfg, model_kwargs):
     """ Resumes a run. It loads previous config without allowing to update keys (used for testing). """
     saved_cfg = cfg.copy()
@@ -101,7 +115,7 @@ def main(cfg: DictConfig):
     utils.create_folders(cfg)
 
     model = DiscreteDenoisingDiffusionMolecular_condition(cfg=cfg, **model_kwargs)
-    # torch.save(model.state_dict(),'/public/home/ustc_yangqs/molecular2molecular/src/init_step1.pth')
+    #torch.save(model.state_dict(),'/home/liuxuwei01/PaddleMaterial/output/init_lxw_step1.pth')
 
     callbacks = []
     if cfg.train.save_model:
@@ -126,16 +140,18 @@ def main(cfg: DictConfig):
                       devices=cfg.general.gpus if use_gpu else 1,
                       max_epochs=cfg.train.n_epochs,
                       check_val_every_n_epoch=cfg.general.check_val_every_n_epochs,
-                      enable_progress_bar=False,
+                      enable_progress_bar=True,
                       callbacks=callbacks,
+                      #limit_train_batches=1, 
                       log_every_n_steps=50,
                       logger = [])
 
     if not cfg.general.test_only:
+        set_seed(42)
         trainer.fit(model, datamodule=datamodule, ckpt_path=cfg.general.resume)
         if cfg.general.name not in ['test']:
-            trainer.test(model, datamodule=datamodule)
-            # trainer.test(model, datamodule=datamodule,ckpt_path='/public/home/ustc_yangqs/molecular2molecular/src/237903_test.ckpt')
+            # trainer.test(model, datamodule=datamodule)
+            trainer.test(model, datamodule=datamodule,ckpt_path='/home/liuxuwei01/PaddleMaterial/output/step1_best.ckpt')
     else:
         # Start by evaluating test_only_path
         trainer.test(model, datamodule=datamodule, ckpt_path=cfg.general.test_only)
@@ -154,3 +170,6 @@ def main(cfg: DictConfig):
 
 if __name__ == '__main__':
     main()
+
+
+

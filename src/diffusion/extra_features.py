@@ -47,7 +47,7 @@ class ExtraFeatures:
             n_components, batched_eigenvalues, nonlcc_indicator, k_lowest_eigvec = eigenfeatures   # (bs, 1), (bs, 10),
                                                                                                 # (bs, n, 1), (bs, n, 2)
 
-            return utils.PlaceHolder(X=torch.cat((x_cycles, nonlcc_indicator, k_lowest_eigvec), dim=-1),
+            return utils.PlaceHolder(X=torch.cat((x_cycles.cuda(), nonlcc_indicator.cuda(), k_lowest_eigvec.cuda()), dim=-1),
                                      E=extra_edge_attr,
                                      y=torch.hstack((n, y_cycles, n_components, batched_eigenvalues)))
         else:
@@ -83,7 +83,7 @@ class EigenFeatures:
         E_t = noisy_data['E_t']
         mask = noisy_data['node_mask']
         A = E_t[..., 1:].sum(dim=-1).float() * mask.unsqueeze(1) * mask.unsqueeze(2)
-        L = compute_laplacian(A, normalize=False)
+        L = compute_laplacian(A, normalize=True)
 
         # 添加正则化项以防止计算失败
         L = L + 1e-6 * torch.eye(L.shape[-1]).type_as(L)  # 小的正则化项
@@ -145,7 +145,7 @@ def compute_laplacian(adjacency, normalize: bool):
 
     diag_norm = 1 / torch.sqrt(diag)            # (bs, n)
     D_norm = torch.diag_embed(diag_norm)        # (bs, n, n)
-    L = torch.eye(n).unsqueeze(0) - D_norm @ adjacency @ D_norm
+    L = torch.eye(n).to(D_norm.device).unsqueeze(0) - D_norm @ adjacency @ D_norm
     L[diag0 == 0] = 0
     return (L + L.transpose(1, 2)) / 2
 
@@ -176,16 +176,21 @@ def get_eigenvectors_features(vectors, node_mask, n_connected, k=2):
         not_lcc_indicator : indicator vectors of largest connected component (lcc) for each graph  -- (bs, n, 1)
         k_lowest_eigvec : k first eigenvectors for the largest connected component   -- (bs, n, k)
     """
+    vectors = vectors.cpu()
+    node_mask = node_mask.cpu()
+    n_connected = n_connected.cpu()
     bs, n = vectors.size(0), vectors.size(1)
-
     # Create an indicator for the nodes outside the largest connected components
-    first_ev = torch.round(vectors[:, :, 0], decimals=3) * node_mask                        # bs, n
+    first_ev = torch.round(vectors[:, :, 0], decimals=3) * node_mask   # bs, n
     # Add random value to the mask to prevent 0 from becoming the mode
-    random = torch.randn(bs, n, device=node_mask.device) * (~node_mask)                                   # bs, n
+    random = torch.randn(bs, n, device=node_mask.device) * (~node_mask)   # bs, n
+    # import numpy as np
+    # random = torch.from_numpy(np.load("/tmp/random_fix.npy")).to(first_ev.device)
     first_ev = first_ev + random
     most_common = torch.mode(first_ev, dim=1).values                                    # values: bs -- indices: bs
     mask = ~ (first_ev == most_common.unsqueeze(1))
     not_lcc_indicator = (mask * node_mask).unsqueeze(-1).float()
+    # exit()
 
     # Get the eigenvectors corresponding to the first nonzero eigenvalues
     to_extend = max(n_connected) + k - n

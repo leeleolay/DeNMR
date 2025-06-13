@@ -15,7 +15,7 @@ from torch_geometric.data import Data, InMemoryDataset, download_url, extract_zi
 from torch_geometric.utils import subgraph
 
 import src.utils as utils
-from src.datasets.abstract_dataset import MolecularDataModule, AbstractDatasetInfos
+from .abstract_dataset import MolecularDataModule, AbstractDatasetInfos
 from src.analysis.rdkit_functions import mol2smiles, build_molecule_with_partial_charges
 from src.analysis.rdkit_functions import compute_molecular_metrics
 # from src.numericalize_text import numericalize_text

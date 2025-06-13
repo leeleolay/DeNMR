@@ -124,13 +124,14 @@ def main(cfg: DictConfig):
                       devices=cfg.general.gpus if use_gpu else 1,
                       max_epochs=cfg.train.n_epochs,
                       check_val_every_n_epoch=cfg.general.check_val_every_n_epochs,
+                      num_sanity_val_steps=0,# 关闭训练前检查
                       enable_progress_bar=False,
                       callbacks=callbacks,
                       log_every_n_steps=50,
                       logger = [])
 
     if not cfg.general.test_only:
-        trainer.fit(model, datamodule=datamodule, ckpt_path=cfg.general.resume)
+        trainer.fit(model, datamodule=datamodule) #, ckpt_path="/home/liuxuwei01/PaddleMaterial/output/DeNMR_CHnmr/CLIP/torch-step2-best.ckpt")
         if cfg.general.name not in ['test']:
             trainer.test(model, datamodule=datamodule)
     else:

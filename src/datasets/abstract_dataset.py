@@ -8,14 +8,53 @@ from torch_geometric.data.lightning import LightningDataset
 
 class AbstractDataModule(LightningDataset):
     def __init__(self, cfg, datasets):
-        super().__init__(train_dataset=datasets['train'], val_dataset=datasets['val'], test_dataset=datasets['test'],
-                         batch_size=cfg.train.batch_size if 'debug' not in cfg.general.name else 2,
-                         num_workers=cfg.train.num_workers,
-                         pin_memory=getattr(cfg.dataset, "pin_memory", False))
+        # 从 cfg 中提取配置
+        batch_size = cfg.train.batch_size if 'debug' not in cfg.general.name else 2
+        num_workers = cfg.train.num_workers
+        pin_memory = getattr(cfg.dataset, "pin_memory", False)
+        self.shuffle_train = getattr(cfg.dataset, "shuffle", True)  # 默认 True，可配置
+
+        # 保留原始成员
+        super().__init__(
+            train_dataset=datasets['train'],
+            val_dataset=datasets['val'],
+            test_dataset=datasets['test'],
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+        
+        # super().__init__(
+        #     train_dataset=datasets['train'], 
+        #     val_dataset=datasets['val'], 
+        #     test_dataset=datasets['test'],
+        #     batch_size=cfg.train.batch_size if 'debug' not in cfg.general.name else 2,
+        #     num_workers=cfg.train.num_workers,
+        #     pin_memory=getattr(cfg.dataset, "pin_memory", False)
+        # )
         self.cfg = cfg
         self.input_dims = None
         self.output_dims = None
+    
+    # ✅ 显式重写 train_dataloader 以支持 shuffle 控制
+    # def train_dataloader(self):
+    #     return DataLoader(
+    #         self.train_dataset,
+    #         batch_size=batch_size,
+    #         shuffle=self.shuffle_train,
+    #         num_workers=self.num_workers,
+    #         pin_memory=self.pin_memory
+    #     )
+    def train_dataloader(self) -> DataLoader:
+        from torch.utils.data import IterableDataset
 
+        shuffle = not isinstance(self.train_dataset, IterableDataset)
+        shuffle &= self.kwargs.get('sampler', None) is None
+        shuffle &= self.kwargs.get('batch_sampler', None) is None
+
+        return self.dataloader(self.train_dataset, shuffle=True,
+                               **self.kwargs)
+    
     def __getitem__(self, idx):
         return self.train_dataset[idx]
 

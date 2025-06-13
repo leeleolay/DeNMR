@@ -162,11 +162,11 @@ class CLIP_molecule_nmr(pl.LightningModule):
         # # 对所有样本的平方和求平均
         # loss = Vec_squared_sum.mean()
 
-        if i%100 == 0:
+        #if i%100 == 0:
             # print(f'train_predV1{predV1}')
             # print(f'train_predV2{predV2}')
             # print(f'train_Vec_squared_sum{Vec_squared_sum}')
-            print(f"train_loss:{loss}")
+        print(f"train_loss:{loss}")
         sys.stdout.flush()
         return {'loss': loss}
 
@@ -176,6 +176,7 @@ class CLIP_molecule_nmr(pl.LightningModule):
 
     def on_fit_start(self) -> None:
         self.train_iterations = len(self.trainer.datamodule.train_dataloader())
+        torch.save(self.state_dict(), "/home/liuxuwei01/PaddleMaterial/output/step2_init_weights.pth")
 
     def on_train_epoch_start(self) -> None:
         self.print("Starting train epoch...")

@@ -229,6 +229,49 @@ def check_issues_norm_values(gamma, norm_val1, norm_val2, num_stdevs=8):
             f'large with sigma_0 {sigma_0:.5f} and '
             f'1 / norm_value = {1. / max_norm_value}')
 
+    """def sample_discrete_features(probX, probE, node_mask):
+    ''' Sample features from multinomial distribution with given probabilities (probX, probE, proby)
+        :param probX: bs, n, dx_out        node features
+        :param probE: bs, n, n, de_out     edge features
+        :param proby: bs, dy_out           global features.
+    '''
+    bs, n, _ = probX.shape
+    # Noise X
+    # The masked rows should define probability distributions as well
+    probX[~node_mask] = 1 / probX.shape[-1]
+
+    # Flatten the probability tensor to sample with multinomial
+    probX = probX.reshape(bs * n, -1)       # (bs * n, dx_out)
+
+    # Sample X
+    X_t = probX.multinomial(1)                                  # (bs * n, 1)
+    X_t = X_t.reshape(bs, n)     # (bs, n)
+    # import numpy as np
+    # X_t = torch.from_numpy(np.load("/tmp/X_t.npy")).to(torch.int64).to('cuda')
+    # X_t = torch.from_numpy(np.load("/home/liuxuwei01/PaddleMaterial/output/X_t_512.npy")).to(torch.int64).to('cuda')
+    # if X_t.size(0) != 512:
+    #     X_t = torch.from_numpy(np.load("/home/liuxuwei01/PaddleMaterial/output/X_t_443.npy")).to(torch.int64).to('cuda')
+    # Noise E
+    # The masked rows should define probability distributions as well
+    inverse_edge_mask = ~(node_mask.unsqueeze(1) * node_mask.unsqueeze(2))
+    diag_mask = torch.eye(n).unsqueeze(0).expand(bs, -1, -1)
+
+    probE[inverse_edge_mask] = 1 / probE.shape[-1]
+    probE[diag_mask.bool()] = 1 / probE.shape[-1]
+
+    probE = probE.reshape(bs * n * n, -1)    # (bs * n * n, de_out)
+
+    # Sample E
+    E_t = probE.multinomial(1).reshape(bs, n, n)   # (bs, n, n)
+    # E_t = torch.from_numpy(np.load("/tmp/E_t.npy")).to(torch.int64).to('cuda')
+    # E_t = torch.from_numpy(np.load("/home/liuxuwei01/PaddleMaterial/output/E_t_512.npy")).to(torch.int64).to('cuda')
+    # if E_t.size(0) != 512:
+    #     E_t = torch.from_numpy(np.load("/home/liuxuwei01/PaddleMaterial/output/E_t_443.npy")).to(torch.int64).to('cuda')
+    E_t = torch.triu(E_t, diagonal=1)
+    E_t = (E_t + torch.transpose(E_t, 1, 2))
+
+    return PlaceHolder(X=X_t, E=E_t, y=torch.zeros(bs, 0).type_as(X_t))
+    """
 
 def sample_discrete_features(probX, probE, node_mask):
     ''' Sample features from multinomial distribution with given probabilities (probX, probE, proby)
@@ -247,7 +290,8 @@ def sample_discrete_features(probX, probE, node_mask):
     # Sample X
     X_t = probX.multinomial(1)                                  # (bs * n, 1)
     X_t = X_t.reshape(bs, n)     # (bs, n)
-
+    # import numpy as np
+    # X_t = torch.from_numpy(np.load("/tmp/X_t_fix.npy")).to('cuda')
     # Noise E
     # The masked rows should define probability distributions as well
     inverse_edge_mask = ~(node_mask.unsqueeze(1) * node_mask.unsqueeze(2))
@@ -260,6 +304,8 @@ def sample_discrete_features(probX, probE, node_mask):
 
     # Sample E
     E_t = probE.multinomial(1).reshape(bs, n, n)   # (bs, n, n)
+    # E_t = torch.from_numpy(np.load("/tmp/E_t_fix.npy")).to('cuda')
+    
     E_t = torch.triu(E_t, diagonal=1)
     E_t = (E_t + torch.transpose(E_t, 1, 2))
 
